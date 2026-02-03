@@ -20,10 +20,10 @@ if __name__ == "__main__":
 
     # Plot MAE
     fig, ax = plt.subplots()
-    ax.plot(df['epoch']+1, df['train_rmse'], label='train_rmse', color='blue')
-    ax.scatter(df['epoch']+1, df['train_mae'], label='train_mae', color='blue', marker='.')
-    ax.plot(df['epoch']+1, df['valid_rmse'], label='valid_rmse', color='orange')
-    ax.scatter(df['epoch']+1, df['valid_mae'], label='valid_mae', color='orange', marker='.')
+    ax.plot(np.arange(len(df['train_rmse'])), df['train_rmse'], label='train_rmse', color='blue')
+    ax.scatter(np.arange(len(df['train_rmse'])), df['train_mae'], label='train_mae', color='blue', marker='.')
+    ax.plot(np.arange(len(df['train_rmse'])), df['valid_rmse'], label='valid_rmse', color='orange')
+    ax.scatter(np.arange(len(df['train_rmse'])), df['valid_mae'], label='valid_mae', color='orange', marker='.')
     ax.set_xlabel('epoch')
     ax.set_ylabel('MAE (years)')
     ax.legend()
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     axt = ax.twinx()
 
     # Plot learning rate
-    axt.step(df['epoch']+1, df['lr'], label='train', alpha=0.4, color='k')
+    axt.step(np.arange(len(df['train_rmse'])), df['lr'], label='train', alpha=0.4, color='k')
     axt.set_yscale('log')
     axt.set_ylabel('learning rate', alpha=0.4, color='k')
     axt.set_ylim((1e-11, 1e-4))

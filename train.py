@@ -214,8 +214,7 @@ if __name__ == "__main__":
     tqdm.write("Training...")
     start_epoch = 0
     best_loss = np.Inf
-    history = pd.DataFrame(columns=['epoch', 'train_loss', 'valid_loss', 'lr',
-                                    'train_rmse', 'train_mae', 'valid_rmse', 'valid_mae', 'weighted_rmse', 'weighted_mae'])
+    history = pd.read_csv(os.path.join(folder, 'history.csv')) if os.path.exists(os.path.join(folder, 'history.csv')) else pd.DataFrame(columns=['epoch', 'train_loss', 'valid_loss', 'lr', 'train_rmse', 'train_mae', 'valid_rmse', 'valid_mae', 'weighted_rmse', 'weighted_mae'])
     for ep in range(start_epoch, args.epochs):
         train_loss, train_mae, train_mse = train(ep, train_loader)
         valid_loss, valid_mae, valid_mse = eval(ep, valid_loader)
@@ -243,9 +242,9 @@ if __name__ == "__main__":
         history = pd.concat([history, pd.DataFrame([{"epoch": ep, "train_loss": train_loss,
                                   "valid_loss": valid_loss, "lr": learning_rate, "train_rmse": np.sqrt(train_mse), 
                                   "train_mae": train_mae, "valid_rmse": np.sqrt(valid_mse), "valid_mae": valid_mae}])], ignore_index=True)
-        history.to_csv(os.path.join(folder, 'history.csv'), index=False)
         # Update learning rate
         scheduler.step(valid_loss)
+    history.to_csv(os.path.join(folder, 'history.csv'), index=False)
     tqdm.write("Done!")
 
 
