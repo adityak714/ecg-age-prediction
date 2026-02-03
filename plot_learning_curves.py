@@ -4,7 +4,7 @@ import numpy as np
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description='plot learnign curve.')
+    parser = argparse.ArgumentParser(description='plot learning curve.')
     parser.add_argument('history_file', type=str,
                         help="path to history file.")
     parser.add_argument('--plot_style', nargs='*', default=[],
@@ -20,17 +20,21 @@ if __name__ == "__main__":
 
     # Plot MAE
     fig, ax = plt.subplots()
-    ax.plot(df['epoch']+1, df['mae'], label='train', color='blue')
+    ax.plot(df['epoch']+1, df['train_rmse'], label='train_rmse', color='blue')
+    ax.scatter(df['epoch']+1, df['train_mae'], label='train_mae', color='blue', marker='.')
+    ax.plot(df['epoch']+1, df['valid_rmse'], label='valid_rmse', color='orange')
+    ax.scatter(df['epoch']+1, df['valid_mae'], label='valid_mae', color='orange', marker='.')
     ax.set_xlabel('epoch')
-    ax.set_ylabel('MAE (years)', color='blue')
-    ax.set_ylim((8, 14))
+    ax.set_ylabel('MAE (years)')
+    ax.legend()
+    #ax.set_ylim((4, 24))
     axt = ax.twinx()
 
     # Plot learning rate
     axt.step(df['epoch']+1, df['lr'], label='train', alpha=0.4, color='k')
     axt.set_yscale('log')
     axt.set_ylabel('learning rate', alpha=0.4, color='k')
-    axt.set_ylim((1e-8, 1e-2))
+    axt.set_ylim((1e-11, 1e-4))
 
     if args.save:
         plt.savefig(args.save)

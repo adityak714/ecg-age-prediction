@@ -1,11 +1,12 @@
 import json
 import torch
-import os
+import os, datetime
 from tqdm import tqdm
 from resnet import ResNet1d
 from dataloader import BatchDataloader
 import torch.optim as optim
 import numpy as np
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 
 def compute_loss(ages, pred_ages, weights):
@@ -50,11 +51,14 @@ def train(ep, dataload):
         bs = len(traces)
         total_loss += loss.detach().cpu().numpy()
         n_entries += bs
+        # Computing MAE and MSE
+        mae_loss = mean_absolute_error(ages.detach().cpu(), pred_ages.detach().cpu())
+        mse_loss = mean_squared_error(ages.detach().cpu(), pred_ages.detach().cpu())
         # Update train bar
         train_bar.desc = train_desc.format(ep, total_loss / n_entries)
         train_bar.update(1)
     train_bar.close()
-    return total_loss / n_entries
+    return total_loss / n_entries, mae_loss, mse_loss
 
 
 def eval(ep, dataload):
@@ -71,6 +75,9 @@ def eval(ep, dataload):
             # Forward pass
             pred_ages = model(traces)
             loss = compute_loss(ages, pred_ages, weights)
+            # Computing validation MAE and MSE
+            mae_loss = mean_absolute_error(ages.detach().cpu(), pred_ages.detach().cpu())
+            mse_loss = mean_squared_error(ages.detach().cpu(), pred_ages.detach().cpu())
             # Update outputs
             bs = len(traces)
             # Update ids
@@ -80,7 +87,7 @@ def eval(ep, dataload):
             eval_bar.desc = eval_desc.format(ep, total_loss / n_entries)
             eval_bar.update(1)
     eval_bar.close()
-    return total_loss / n_entries
+    return total_loss / n_entries, mae_loss, mse_loss
 
 
 if __name__ == "__main__":
@@ -131,7 +138,7 @@ if __name__ == "__main__":
                         help='column with the age in csv file.')
     parser.add_argument('--ids_col', default=None,
                         help='column with the ids in csv file.')
-    parser.add_argument('--cuda', action='store_true',
+    parser.add_argument('--cuda', default=0,
                         help='use cuda for computations. (default: False)')
     parser.add_argument('--n_valid', type=int, default=100,
                         help='the first `n_valid` exams in the hdf will be for validation.'
@@ -186,6 +193,11 @@ if __name__ == "__main__":
                      n_classes=N_CLASSES,
                      kernel_size=args.kernel_size,
                      dropout_rate=args.dropout_rate)
+    
+    print("Is there an existing trained model? -", os.path.exists('./model/weights.pth'))
+    if os.path.exists('./model/weights.pth'):
+        model.load_state_dict(torch.load('./model/weights.pth', weights_only=True))
+    
     model.to(device=device)
     tqdm.write("Done!")
 
@@ -203,18 +215,18 @@ if __name__ == "__main__":
     start_epoch = 0
     best_loss = np.Inf
     history = pd.DataFrame(columns=['epoch', 'train_loss', 'valid_loss', 'lr',
-                                    'weighted_rmse', 'weighted_mae', 'rmse', 'mse'])
+                                    'train_rmse', 'train_mae', 'valid_rmse', 'valid_mae', 'weighted_rmse', 'weighted_mae'])
     for ep in range(start_epoch, args.epochs):
-        train_loss = train(ep, train_loader)
-        valid_loss = eval(ep, valid_loader)
+        train_loss, train_mae, train_mse = train(ep, train_loader)
+        valid_loss, valid_mae, valid_mse = eval(ep, valid_loader)
         # Save best model
         if valid_loss < best_loss:
             # Save model
+            torch.save(model.state_dict(), os.path.join(folder, 'weights.pth'))
             torch.save({'epoch': ep,
                         'model': model.state_dict(),
                         'valid_loss': valid_loss,
-                        'optimizer': optimizer.state_dict()},
-                       os.path.join(folder, 'model.pth'))
+                        'optimizer': optimizer.state_dict()}, os.path.join(folder, 'model.pth'))
             # Update best validation loss
             best_loss = valid_loss
         # Get learning rate
@@ -224,12 +236,13 @@ if __name__ == "__main__":
         if learning_rate < args.min_lr:
             break
         # Print message
-        tqdm.write('Epoch {:2d}: \tTrain Loss {:.6f} ' \
-                  '\tValid Loss {:.6f} \tLearning Rate {:.7f}\t'
-                 .format(ep, train_loss, valid_loss, learning_rate))
+        tqdm.write('Epoch {:2d}: \tTrain Loss {:.6f} \tTrain MSE {:.5f} \tTrain MAE {:.5f}' \
+                  '\n\t\tValid Loss {:.6f} \tValid MSE {:.5f} \tValid MAE {:.5f} \tLearning Rate {:.7f}\t'
+                 .format(ep, train_loss, train_mse, train_mae, valid_loss, valid_mse, valid_mae, learning_rate))
         # Save history
-        history = history.append({"epoch": ep, "train_loss": train_loss,
-                                  "valid_loss": valid_loss, "lr": learning_rate}, ignore_index=True)
+        history = pd.concat([history, pd.DataFrame([{"epoch": ep, "train_loss": train_loss,
+                                  "valid_loss": valid_loss, "lr": learning_rate, "train_rmse": np.sqrt(train_mse), 
+                                  "train_mae": train_mae, "valid_rmse": np.sqrt(valid_mse), "valid_mae": valid_mae}])], ignore_index=True)
         history.to_csv(os.path.join(folder, 'history.csv'), index=False)
         # Update learning rate
         scheduler.step(valid_loss)
